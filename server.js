@@ -13,7 +13,7 @@
  ********************************************************************************/
 const express = require("express");
 const path = require("path");
-const blog = require("./blog-service.js");
+const blogDataService = require("./blog-service.js");
 const app = express();
 
 const HTTP_PORT = process.env.PORT || 8080;
@@ -22,20 +22,57 @@ app.use(express.static("public"));
 
 // Routes
 app.get("/", (req, res) => {
-    res.redirect("/about")
+  res.redirect("/about");
 });
 
 app.get("/about", (req, res) => {
-    res.sendFile(path.join(__dirname, "/views/about.html"))
+  res.sendFile(path.join(__dirname, "/views/about.html"));
 });
 
 app.get("/blog", (req, res) => {
-    // here
+  blogDataService
+    .getPublishedPosts()
+    .then((data) => {
+      res.send(data);
+    })
+    .catch((err) => {
+      res.send("Message: " + err);
+    });
 });
 
-
-
-app.listen(HTTP_PORT, function(){
-    console.log(`Express http server listening on ${HTTP_PORT}`);
+app.get("/posts", (req, res) => {
+  blogDataService
+    .getAllPosts()
+    .then((data) => {
+      res.send(data);
+    })
+    .catch((err) => {
+      res.send("Message: " + err);
+    });
 });
 
+app.get("/categories", (req, res) => {
+  blogDataService
+    .getCategories()
+    .then((data) => {
+      res.send(data);
+    })
+    .catch((err) => {
+      res.send("Message: " + err);
+    });
+});
+
+app.use((req, res, next) => {
+  res.status(404).sendFile(path.join(__dirname, "/views/404.html"));
+});
+
+blogDataService
+  .initialize()
+  .then(() => {
+    app.listen(HTTP_PORT, () => {
+      console.log(`Express http server listening on ${HTTP_PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.log(err);
+  });
