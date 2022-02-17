@@ -14,18 +14,18 @@
 const express = require("express");
 const path = require("path");
 const multer = require("multer");
-const cloudinary = require('cloudinary').v2;
-const streamifier = require('streamifier');
-const upload = multer(); // no { storage: storage } 
+const cloudinary = require("cloudinary").v2;
+const streamifier = require("streamifier");
+const upload = multer(); // no { storage: storage }
 const blogDataService = require("./blog-service.js");
 const app = express();
 
 cloudinary.config({
-  cloud_name: 'dfknzgo2m',
-  api_key: '421913683339951',
-  api_secret: '3hhtHIxES2TMuu3iIRIFUzBM3Sg',
-  secure: true
- });
+  cloud_name: "dfknzgo2m",
+  api_key: "421913683339951",
+  api_secret: "3hhtHIxES2TMuu3iIRIFUzBM3Sg",
+  secure: true,
+});
 
 const HTTP_PORT = process.env.PORT || 8080;
 
@@ -47,18 +47,32 @@ app.get("/blog", (req, res) => {
       res.send(data);
     })
     .catch((err) => {
-      res.send("Message: " + err);
+      res.status(500).send("Message: " + err);
     });
 });
 
 app.get("/posts", (req, res) => {
+  if (req.query.category) {
+    p = blogDataService.getPostsByCategory(req.query.category);
+  } else if (req.query.minDate){
+    p = blogDataService.getPostsByMinDate(req.query.minDate);
+  } else {
+    p = blogDataService.getAllPosts()
+  }
+  p.then((data) => res.send(data))
+    .catch((err) => {
+      res.status(500).send("Message: " + err);
+    });
+});
+
+app.get("/post/:id", (req, res) => {
   blogDataService
-    .getAllPosts()
+    .getPostById(req.params.id)
     .then((data) => {
       res.send(data);
     })
     .catch((err) => {
-      res.send("Message: " + err);
+      res.status(500).send("Message: " + err);
     });
 });
 
@@ -69,54 +83,55 @@ app.get("/categories", (req, res) => {
       res.send(data);
     })
     .catch((err) => {
-      res.send("Message: " + err);
+      res.status(500).send("Message: " + err);
     });
 });
 
-app.get("/posts/add", (req, res)=>{
-  res.sendFile(path.join(__dirname, "views/addPost.html"))
+app.get("/posts/add", (req, res) => {
+  res.sendFile(path.join(__dirname, "/views/addPost.html"));
 });
 
 app.post("/posts/add", upload.single("featureImage"), (req, res) => {
-  if(req.file){
+  if (req.file) {
     let streamUpload = (req) => {
-        return new Promise((resolve, reject) => {
-            let stream = cloudinary.uploader.upload_stream(
-                (error, result) => {
-                    if (result) {
-                        resolve(result);
-                    } else {
-                        reject(error);
-                    }
-                }
-            );
-
-            streamifier.createReadStream(req.file.buffer).pipe(stream);
+      return new Promise((resolve, reject) => {
+        let stream = cloudinary.uploader.upload_stream((error, result) => {
+          if (result) {
+            resolve(result);
+          } else {
+            reject(error);
+          }
         });
+
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
     };
 
     async function upload(req) {
-        let result = await streamUpload(req);
-        console.log(result);
-        return result;
+      let result = await streamUpload(req);
+      console.log(result);
+      return result;
     }
 
-    upload(req).then((uploaded)=>{
-        processPost(uploaded.url);
+    upload(req).then((uploaded) => {
+      processPost(uploaded.url);
     });
-}else{
+  } else {
     processPost("");
-}
+  }
 
-function processPost(imageUrl){
+  function processPost(imageUrl) {
     req.body.featureImage = imageUrl;
-    res.send(`
-        <h1>${req.body.title}</h1><br />
-        <img src="${imageUrl}" /><br />
-        <p>${req.body.body}</p>
-    `);
-    res.redirect("views/posts");
-} 
+    blogDataService
+      .addPost(req.body)
+      .then((data) => {
+        res.send(data);
+      })
+      .catch((err) => {
+        res.status(500).send("Message: " + err);
+      });
+    res.redirect("/posts");
+  }
 });
 
 app.use((req, res, next) => {
@@ -133,7 +148,3 @@ blogDataService
   .catch((err) => {
     console.log(err);
   });
-
-
-
-  
